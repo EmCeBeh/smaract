@@ -185,17 +185,20 @@ class SmaractMCSController(SmaractBaseController):
 
         for axis_nr in range(self.nchannels):
             ans = self.send_cmd(':CHAN%d:PTYPE:NAME?' % axis_nr)
-            sensor_code = ans.strip("\"").rsplit('.')[0]
+            sensor_code = ans.replace('\"', '').replace('\r', '').rsplit('.')[0]
             if sensor_code in ['SL']:
                 axis = SmaractBaseAxis(self, axis_nr)
                 self.append(axis)
             elif sensor_code in ['SR']:
                 axis = SmaractBaseAxis(self, axis_nr)
                 self.append(axis)
+            elif sensor_code in ['CUSTOM0', 'CUSTOM1', 'CUSTOM2', 'CUSTOM3']:
+                axis = SmaractBaseAxis(self, axis_nr)
+                self.append(axis)
             else:
                 msg = "Failed to create axis %s\n" % axis_nr
-                msg += 'There is not axis class for sensor code %d' % sensor_code
-                raise RuntimeError()
+                msg += 'There is not axis class for sensor code %s' % sensor_code
+                raise RuntimeError(msg)
 
     # 3.1 - Initialization commands
 
