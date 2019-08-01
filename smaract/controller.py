@@ -10,7 +10,7 @@
 
 
 from constants import *
-from axis import SmaractSDCAxis, SmaractMCSAngularAxis, SmaractMCSLinearAxis
+from axis import SmaractBaseAxis
 from communication import SmaractCommunication
 
 
@@ -52,7 +52,7 @@ class SmaractBaseController(list):
                    157: 'Permission Denied Error',
                    159: 'Power Amplifier Disabled Error'}
 
-    SENSOR_CODE = {1: 'S',
+    SENSOR_CODE = {1: 'SL',
                    2: 'SR',
                    3: 'ML',
                    4: 'MR',
@@ -111,15 +111,15 @@ class SmaractBaseController(list):
         :return:
         """
         ans = self._comm.send_cmd(cmd)
-        flg_error = ans[0] == 'E' and ans[1] != 'S'
-        if flg_error:
-            error_code = int(ans.rsplit(',', 1)[1])
+        while True:
+            err = int(self._comm.send_cmd(':SYST:ERR:COUN?'))
+            if err == 0:
+                break
+            resp = self._comm.send_cmd(':SYST:ERR:NEXT?')
+            print(resp)
+            error_code = int(resp.rsplit(',')[0])
+            error_msg = resp.rsplit(',')[1]
             if error_code != 0:
-                if error_code in self.ERROR_CODES:
-                    error_msg = self.ERROR_CODES[error_code]
-                else:
-                    error_msg = 'There is not message for this error on ' + \
-                        'the documentation'
                 msg = ('Error %d: %s' % (error_code, error_msg))
                                                    
                 raise RuntimeError(msg)
@@ -136,16 +136,6 @@ class SmaractBaseController(list):
 
     # 3.1 - Initialization commands
     # -------------------------------------------------------------------------
-    @property
-    def version(self):
-        """
-        Get the interface version of the system.
-
-        :return: String representing the current interface version.
-        """
-        cmd = 'GIV'
-        ans = self.send_cmd(cmd)
-        return 'Version: %s' % '.'.join(ans[2:].split(','))
 
     @property
     def nchannels(self):
@@ -156,9 +146,9 @@ class SmaractBaseController(list):
 
         :return: the number of channels configured.
         """
-        cmd = 'GNC'
+        cmd = ':DEV:NOCH?'
         ans = self.send_cmd(cmd)
-        return int(ans[1:])
+        return int(ans)
 
     @property
     def id(self):
@@ -167,22 +157,9 @@ class SmaractBaseController(list):
 
         :return: system ID.
         """
-        cmd = 'GSI'
+        cmd = ':DEV:SNUM?'
         ans = self.send_cmd(cmd)
         return ans
-
-
-class SmaractSDCController(SmaractBaseController):
-    """
-    Specific Smaract motor controller class for a Step and Direction Controller
-    (SDC). This class extends the base class with the ASCII commands specific
-    for the SDC motion controller.
-    """
-    def __init__(self, comm_type, *args):
-        SmaractBaseController.__init__(self, comm_type, *args)
-        axis = SmaractSDCAxis(self)
-        self.append(axis)
-
 
 class SmaractMCSController(SmaractBaseController):
     """
@@ -196,10 +173,6 @@ class SmaractMCSController(SmaractBaseController):
 
         # Configure communication mode to synchronous
         # The communication library work with acknowledge
-
-        mode = CommunicationMode.SYNC
-        cmd = 'SCM%d' % mode
-        self.send_cmd(cmd)
         self._create_axes()
         
     def _create_axes(self):
@@ -211,13 +184,13 @@ class SmaractMCSController(SmaractBaseController):
             pass
 
         for axis_nr in range(self.nchannels):
-            ans = self.send_cmd('GST%d' % axis_nr)
-            sensor_code = int(ans.rsplit(',', 1)[1])
-            if sensor_code in self.LINEAR_SENSORS:
-                axis = SmaractMCSLinearAxis(self, axis_nr)
+            ans = self.send_cmd(':CHAN%d:PTYPE:NAME?' % axis_nr)
+            sensor_code = ans.strip("\"").rsplit('.')[0]
+            if sensor_code in ['SL']:
+                axis = SmaractBaseAxis(self, axis_nr)
                 self.append(axis)
-            elif sensor_code in self.ROTARY_SENSORS:
-                axis = SmaractMCSAngularAxis(self, axis_nr)
+            elif sensor_code in ['SR']:
+                axis = SmaractBaseAxis(self, axis_nr)
                 self.append(axis)
             else:
                 msg = "Failed to create axis %s\n" % axis_nr
@@ -225,31 +198,6 @@ class SmaractMCSController(SmaractBaseController):
                 raise RuntimeError()
 
     # 3.1 - Initialization commands
-    # -------------------------------------------------------------------------
-    @property
-    def communication_mode(self):
-        """
-        Gets the type of communication with the controller.
-        0: synchronous communication (SYNC).
-        1: asynchronous communication (ASYNC).
-
-        :return: current communication mode.
-        """
-        ans = self.send_cmd('GCM')
-        return int(ans[-1])
-
-    # The communication class is based on synchronous communication, for that
-    #  reason it is not possible to change the type of communication.
-    # @communication_mode.setter
-    # def communication_mode(self, mode):
-    #     """
-    #     Sets the type of communication with the controller.
-    #
-    #     :param mode: 0 (SYNC) or 1 (ASYMC)
-    #     :return: None
-    #     """
-    #     cmd = 'SCM%d' % mode
-    #     self.send_cmd(cmd)
 
     def reset(self):
         """
@@ -257,21 +205,8 @@ class SmaractMCSController(SmaractBaseController):
 
         :return: None
         """
-        ans = self.send_cmd('R')
+        ans = self.send_cmd('*RST')
         return float(ans.split(',')[1])
-
-    def set_hcm_enabled(self, mode):
-        """
-        Sets the Hand Control Module operation mode:
-        0: Disabled
-        1: Enabled
-        2: Read-Only
-
-        :param mode: integer representing the operation mode.
-        :return: None
-        """
-        cmd = 'SHE%d' % mode
-        self.send_cmd(cmd)
 
     # 3.2 - Configuration commands
     # -------------------------------------------------------------------------

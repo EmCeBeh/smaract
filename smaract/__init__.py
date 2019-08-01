@@ -12,7 +12,7 @@
 # ------------------------------------------------------------------------------
 
 
-from .controller import SmaractSDCController, SmaractMCSController
+from .controller import SmaractMCSController
 from .communication import CommType
 from .constants import Direction, SensorMode, EffectorType, Status
 

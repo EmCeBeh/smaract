@@ -58,9 +58,9 @@ class SmaractCommunication(object):
             raise ValueError()
 
     def send_cmd(self, cmd):
-        cmd = ':%s\n' % cmd
+        cmd = '%s\n' % cmd
         ans = self._comm.send_cmd(cmd)
-        return ans[1:-1]
+        return ans[0:-1]
 
     def get_comm_type(self):
         return self._comm_type
@@ -111,5 +111,9 @@ class SocketCom(socket):
                                'Error: %s' % e)
     @comm_error_handler
     def send_cmd(self, cmd):
+        #print(cmd)
         self.sendall(cmd)
-        return self.recv(1024)
+        if cmd.find('?') > 0:
+            return self.recv(1024)
+        else:
+            return ''
