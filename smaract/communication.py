@@ -26,7 +26,7 @@ def comm_error_handler(f):
         try:
             ans = f(*args, **kwargs)
             return ans
-        except Exception, e:
+        except Exception as e:
             msg = ('Problem with the communication. Verify the hardware. '
                    'Error: %s' % e)
             raise RuntimeError(msg)
